@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import BoxPreview from './BoxPreview.vue'
+import LogoMark from './LogoMark.vue'
 import { shapes, sizes, colors, finishes, items } from '../data/briefOptions.js'
 
 const emit = defineEmits(['close'])
@@ -34,6 +35,12 @@ const form = reactive({
 const canAdvance = computed(() => {
   if (step.value === 1) return form.idea.trim().length > 8 && form.contact.trim().length > 3
   return true
+})
+
+const missing = computed(() => {
+  if (step.value !== 1 || canAdvance.value) return ''
+  if (form.idea.trim().length <= 8) return 'İdeyanı bir-iki cümlə ilə yazın'
+  return 'Sizinlə necə əlaqə saxlayaq?'
 })
 
 /* --- step 2: reference images ------------------------------------------- */
@@ -85,8 +92,8 @@ const summary = computed(() => {
 
 /* --- submit --------------------------------------------------------------
    No backend yet: the brief is handed to the studio's inbox and also offered
-   as a file so nothing is lost. Replace `deliver` with a POST when the
-   endpoint exists — the payload below is already the full brief. */
+   as a file so nothing is lost. Swap `submit` for a POST when the endpoint
+   exists — `payload()` is already the full brief. */
 function payload() {
   return {
     sent_at: new Date().toISOString(),
@@ -138,146 +145,199 @@ function submit() {
   sent.value = true
 }
 
+/* --- navigation ----------------------------------------------------------- */
+const dir = ref(1) // which way the panes slide
+
+function go(n) {
+  if (n === step.value) return
+  if (n > step.value && !canAdvance.value) return
+  dir.value = n > step.value ? 1 : -1
+  step.value = n
+}
+
 /* --- shell ---------------------------------------------------------------- */
 function close() {
   if (closing.value) return
   closing.value = true
-  setTimeout(() => emit('close'), 260)
+  setTimeout(() => emit('close'), 420)
 }
 
 function onKey(e) {
   if (e.key === 'Escape') close()
 }
 
-onMounted(() => window.addEventListener('keydown', onKey))
+const ideaField = ref(null)
+const body = ref(null)
+
+onMounted(async () => {
+  window.addEventListener('keydown', onKey)
+  await nextTick()
+  // wait for the wipe to clear before pulling focus into the field
+  setTimeout(() => ideaField.value?.focus({ preventScroll: true }), 520)
+})
+
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
   form.refs.forEach((r) => URL.revokeObjectURL(r.url))
 })
 
-const panel = ref(null)
-watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
+watch(step, () => body.value?.scrollTo({ top: 0 }))
 </script>
 
 <template>
-  <div class="bw" :class="{ 'bw--out': closing }" role="dialog" aria-modal="true">
-    <div class="bw__scrim" @click="close"></div>
+  <div class="bw" :class="{ 'bw--out': closing }" role="dialog" aria-modal="true" aria-label="Brief">
+    <!-- top bar -->
+    <header class="bw__head">
+      <div class="bw__brand">
+        <LogoMark :size="28" />
+        <span>Brief</span>
+      </div>
 
-    <div class="bw__panel">
-      <header class="bw__head">
-        <div class="bw__steps">
-          <button
-            v-for="s in STEPS"
-            :key="s.n"
-            class="bw__step"
-            :class="{ 'is-on': step === s.n, 'is-done': step > s.n }"
-            :disabled="s.n > step"
-            @click="step = s.n"
-          >
-            <span class="bw__stepN">{{ String(s.n).padStart(2, '0') }}</span>
-            <span class="bw__stepL">{{ s.label }}</span>
-          </button>
-        </div>
-        <button class="bw__x" aria-label="Bağla" @click="close"><i></i><i></i></button>
-        <span class="bw__rail"><i :style="{ transform: `scaleX(${step / 3})` }"></i></span>
-      </header>
+      <nav class="bw__steps" aria-label="Addımlar">
+        <button
+          v-for="s in STEPS"
+          :key="s.n"
+          class="bw__step"
+          :class="{ 'is-on': step === s.n && !sent, 'is-done': step > s.n || sent }"
+          :disabled="sent || (s.n > step && !canAdvance) || s.n > step + 1"
+          @click="go(s.n)"
+        >
+          <span class="bw__stepN">{{ String(s.n).padStart(2, '0') }}</span>
+          <span class="bw__stepL">{{ s.label }}</span>
+        </button>
+      </nav>
 
-      <div ref="panel" class="bw__body">
+      <button class="bw__x" aria-label="Bağla" @click="close">
+        <span>Bağla</span><i></i><i></i>
+      </button>
+
+      <span class="bw__rail"><i :style="{ transform: `scaleX(${sent ? 1 : step / 3})` }"></i></span>
+    </header>
+
+    <!-- content -->
+    <div ref="body" class="bw__body" data-lenis-prevent>
+      <Transition :name="dir > 0 ? 'fwd' : 'back'" mode="out-in">
         <!-- sent -->
-        <div v-if="sent" class="bw__done">
-          <h3>Brief hazırdır</h3>
+        <section v-if="sent" key="done" class="bw__done">
+          <LogoMark class="bw__doneMark" :size="56" ring />
+          <h2>Brief hazırdır</h2>
           <p>
             Sorğunuzu bizə göndərin — bir iş günü ərzində konsepsiya və qiymətlə
             qayıdırıq.
           </p>
+
+          <dl class="bw__recap">
+            <div v-for="[k, v] in summary" :key="k">
+              <dt>{{ k }}</dt>
+              <dd>{{ v }}</dd>
+            </div>
+          </dl>
+
           <div class="bw__doneActs">
             <a class="btn btn--ink" :href="mailto">
               <span class="btn__dot"></span><span>E-poçt ilə göndər</span>
             </a>
             <button class="bw__link" @click="downloadBrief">Brief-i yüklə (.json)</button>
           </div>
-          <p class="bw__fine">
-            Referans şəkilləri e-poçta əl ilə əlavə etməyi unutmayın.
-          </p>
-        </div>
+          <p class="bw__fine">Referans şəkilləri e-poçta əl ilə əlavə etməyi unutmayın.</p>
+        </section>
 
         <!-- 1 · idea -->
-        <section v-else-if="step === 1" class="bw__pane">
-          <h3 class="bw__title">İdeyanızı öz sözlərinizlə yazın</h3>
-          <p class="bw__lede">
-            Səliqəli olmasına ehtiyac yoxdur. Kimə gedir, hansı münasibət, nə hiss
-            oyatmalıdır — bu qədəri bəsdir.
-          </p>
+        <section v-else-if="step === 1" key="s1" class="bw__pane">
+          <aside class="bw__intro">
+            <span class="bw__big">01</span>
+            <h2 class="bw__title">İdeyanızı öz sözlərinizlə yazın</h2>
+            <p class="bw__lede">
+              Səliqəli olmasına ehtiyac yoxdur. Kimə gedir, hansı münasibət, nə hiss
+              oyatmalıdır — bu qədəri bəsdir.
+            </p>
+            <ul class="bw__tips">
+              <li>Kim alacaq — müştəri, komanda, tərəfdaş?</li>
+              <li>Hansı münasibət — Yeni il, yubiley, tədbir?</li>
+              <li>Bəyəndiyiniz rəng və ya material varmı?</li>
+            </ul>
+          </aside>
 
-          <label class="bw__field bw__field--area">
-            <span>İdeya</span>
-            <textarea
-              v-model="form.idea"
-              rows="6"
-              placeholder="Məsələn: 200 korporativ müştəri üçün Yeni il dəsti. Yaşıl və qızıl. İçində şam, dəftər və şirniyyat olsun…"
-            ></textarea>
-          </label>
+          <div class="bw__form">
+            <label class="bw__field bw__field--area">
+              <span>İdeya <b>*</b></span>
+              <textarea
+                ref="ideaField"
+                v-model="form.idea"
+                rows="7"
+                placeholder="Məsələn: 200 korporativ müştəri üçün Yeni il dəsti. Yaşıl və qızıl. İçində şam, dəftər və şirniyyat olsun…"
+              ></textarea>
+            </label>
 
-          <div class="bw__row">
-            <label class="bw__field">
-              <span>Ad / Şirkət</span>
-              <input v-model="form.name" type="text" placeholder="Ayan MMC" />
-            </label>
-            <label class="bw__field">
-              <span>Əlaqə (e-poçt və ya telefon)</span>
-              <input v-model="form.contact" type="text" placeholder="ayan@sirket.az" />
-            </label>
-          </div>
-          <div class="bw__row">
-            <label class="bw__field">
-              <span>Təxmini tiraj</span>
-              <input v-model="form.qty" type="text" placeholder="200 dəst" />
-            </label>
-            <label class="bw__field">
-              <span>Lazım olan tarix</span>
-              <input v-model="form.deadline" type="text" placeholder="20 dekabr" />
-            </label>
+            <div class="bw__row">
+              <label class="bw__field">
+                <span>Ad / Şirkət</span>
+                <input v-model="form.name" type="text" autocomplete="organization" placeholder="Ayan MMC" />
+              </label>
+              <label class="bw__field">
+                <span>Əlaqə <b>*</b></span>
+                <input v-model="form.contact" type="text" autocomplete="email" placeholder="E-poçt və ya telefon" />
+              </label>
+            </div>
+            <div class="bw__row">
+              <label class="bw__field">
+                <span>Təxmini tiraj</span>
+                <input v-model="form.qty" type="text" placeholder="200 dəst" />
+              </label>
+              <label class="bw__field">
+                <span>Lazım olan tarix</span>
+                <input v-model="form.deadline" type="text" placeholder="20 dekabr" />
+              </label>
+            </div>
           </div>
         </section>
 
         <!-- 2 · references -->
-        <section v-else-if="step === 2" class="bw__pane">
-          <h3 class="bw__title">Referans şəkilləriniz varsa əlavə edin</h3>
-          <p class="bw__lede">
-            İstəyə bağlıdır. Bəyəndiyiniz qutu, rəng və ya üslub — nə olursa olsun
-            kömək edir.
-          </p>
+        <section v-else-if="step === 2" key="s2" class="bw__pane">
+          <aside class="bw__intro">
+            <span class="bw__big">02</span>
+            <h2 class="bw__title">Referans şəkilləriniz varsa əlavə edin</h2>
+            <p class="bw__lede">
+              İstəyə bağlıdır. Bəyəndiyiniz qutu, rəng və ya üslub — nə olursa olsun
+              kömək edir. Yoxdursa, bu addımı keçin.
+            </p>
+            <p class="bw__count">{{ form.refs.length }} / {{ MAX_REFS }} şəkil</p>
+          </aside>
 
-          <label
-            class="bw__drop"
-            :class="{ 'is-over': dropping }"
-            @dragover.prevent="dropping = true"
-            @dragleave="dropping = false"
-            @drop.prevent="onDrop"
-          >
-            <input type="file" accept="image/*" multiple hidden @change="onPick" />
-            <strong>Şəkilləri buraya atın</strong>
-            <span>və ya seçmək üçün klikləyin · maksimum {{ MAX_REFS }} şəkil</span>
-          </label>
+          <div class="bw__form">
+            <label
+              class="bw__drop"
+              :class="{ 'is-over': dropping, 'is-compact': form.refs.length }"
+              @dragover.prevent="dropping = true"
+              @dragleave="dropping = false"
+              @drop.prevent="onDrop"
+            >
+              <input type="file" accept="image/*" multiple hidden @change="onPick" />
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4" />
+              </svg>
+              <strong>Şəkilləri buraya atın</strong>
+              <span>və ya seçmək üçün klikləyin</span>
+            </label>
 
-          <ul v-if="form.refs.length" class="bw__refs">
-            <li v-for="(r, i) in form.refs" :key="r.url">
-              <img :src="r.url" :alt="r.name" />
-              <button aria-label="Sil" @click="removeRef(i)">×</button>
-            </li>
-          </ul>
-
-          <p v-else class="bw__skip">Referansınız yoxdursa, birbaşa növbəti addıma keçin.</p>
+            <TransitionGroup v-if="form.refs.length" tag="ul" name="ref" class="bw__refs">
+              <li v-for="(r, i) in form.refs" :key="r.url">
+                <img :src="r.url" :alt="r.name" />
+                <button aria-label="Sil" @click="removeRef(i)">×</button>
+              </li>
+            </TransitionGroup>
+          </div>
         </section>
 
         <!-- 3 · configurator -->
-        <section v-else class="bw__pane bw__pane--cfg">
-          <div class="bw__cfgView">
+        <section v-else key="s3" class="bw__pane bw__pane--cfg">
+          <div class="bw__stage">
             <BoxPreview :config="form.config" />
           </div>
 
-          <div class="bw__cfgOpts">
-            <h3 class="bw__title bw__title--sm">Qutunu yığın</h3>
+          <div class="bw__opts" data-lenis-prevent>
+            <span class="bw__big">03</span>
+            <h2 class="bw__title">Qutunu yığın</h2>
             <p class="bw__lede">
               Təxmini bir maket — istehsalda hər detalı birlikdə dəqiqləşdiririk.
             </p>
@@ -311,7 +371,10 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
             </div>
 
             <div class="bw__group">
-              <p class="bw__gLabel">Rəng</p>
+              <p class="bw__gLabel">
+                Rəng
+                <em>{{ colors.find((c) => c.id === form.config.color)?.label }}</em>
+              </p>
               <div class="bw__sw">
                 <button
                   v-for="c in colors"
@@ -341,7 +404,9 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
             </div>
 
             <div class="bw__group">
-              <p class="bw__gLabel">İçindəkilər</p>
+              <p class="bw__gLabel">
+                İçindəkilər <em>{{ form.config.items.length }} seçilib</em>
+              </p>
               <div class="bw__chips">
                 <button
                   v-for="it in items"
@@ -355,90 +420,101 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
             </div>
           </div>
         </section>
-      </div>
-
-      <footer v-if="!sent" class="bw__foot">
-        <button v-if="step > 1" class="bw__link" @click="step--">Geri</button>
-        <span v-else class="bw__link bw__link--mute">Addım {{ step }} / 3</span>
-
-        <div class="bw__footActs">
-          <button v-if="step === 2" class="bw__link" @click="step = 3">Keç</button>
-          <button
-            v-if="step < 3"
-            class="btn btn--ink"
-            :disabled="!canAdvance"
-            @click="step++"
-          >
-            <span class="btn__dot"></span><span>Davam et</span>
-          </button>
-          <button v-else class="btn btn--ink" @click="submit">
-            <span class="btn__dot"></span><span>Brief-i tamamla</span>
-          </button>
-        </div>
-      </footer>
+      </Transition>
     </div>
+
+    <!-- bottom bar -->
+    <footer v-if="!sent" class="bw__foot">
+      <button v-if="step > 1" class="bw__link" @click="go(step - 1)">← Geri</button>
+      <span v-else class="bw__link bw__link--mute">Addım {{ step }} / 3</span>
+
+      <div class="bw__footActs">
+        <Transition name="fade">
+          <span v-if="missing" class="bw__hint">{{ missing }}</span>
+        </Transition>
+        <button v-if="step === 2 && !form.refs.length" class="bw__link" @click="go(3)">Keç</button>
+        <button v-if="step < 3" class="btn btn--ink" :disabled="!canAdvance" @click="go(step + 1)">
+          <span class="btn__dot"></span><span>Davam et</span>
+        </button>
+        <button v-else class="btn btn--ink" @click="submit">
+          <span class="btn__dot"></span><span>Brief-i tamamla</span>
+        </button>
+      </div>
+    </footer>
   </div>
 </template>
 
 <style scoped>
+/* ---- full-screen shell; enters as a wipe up from the bottom edge ---- */
 .bw {
   position: fixed;
   inset: 0;
   z-index: 160;
-  display: grid;
-  place-items: center;
-  padding: clamp(0px, 3vw, 40px);
-}
-.bw__scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(16, 24, 19, 0.84);
-  animation: fade var(--t-mid) ease forwards;
-}
-.bw--out .bw__scrim {
-  animation: fade var(--t-fast) ease reverse forwards;
-}
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-}
-
-.bw__panel {
-  position: relative;
-  width: min(100%, 1060px);
-  max-height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--chalk);
-  overflow: hidden;
-  box-shadow: 0 50px 100px -48px rgba(0, 0, 0, 0.75);
-  animation: lift var(--t-slow) var(--ease-out);
+  color: var(--forest-ink);
+  animation: wipe-in 0.62s var(--ease-out) both;
 }
-.bw--out .bw__panel {
-  animation: lift var(--t-fast) var(--ease-in) reverse;
+.bw--out {
+  animation: wipe-out 0.42s var(--ease-in) both;
 }
-@keyframes lift {
+@keyframes wipe-in {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes wipe-out {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+/* contents trail the wipe slightly so the panel lands first */
+.bw__head,
+.bw__body,
+.bw__foot {
+  animation: settle var(--t-slow) var(--ease-out) 0.18s both;
+}
+@keyframes settle {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.99);
+    transform: translateY(10px);
   }
 }
 
-/* head */
+/* ---- head ---- */
 .bw__head {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 16px;
-  padding: 20px clamp(20px, 3vw, 34px);
+  gap: 20px;
+  padding: 18px var(--gutter);
   border-bottom: 1px solid rgba(22, 32, 26, 0.1);
 }
+.bw__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--forest);
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+.bw__brand span {
+  color: var(--forest-ink);
+  opacity: 0.6;
+}
+
 .bw__steps {
   display: flex;
-  gap: clamp(12px, 3vw, 34px);
-  margin-right: auto;
-  overflow: hidden;
+  gap: clamp(14px, 3vw, 44px);
 }
 .bw__step {
   display: flex;
@@ -447,9 +523,12 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  opacity: 0.32;
-  transition: opacity var(--t-mid) ease;
+  opacity: 0.3;
   white-space: nowrap;
+  transition: opacity var(--t-mid) ease;
+}
+.bw__step:not(:disabled):hover {
+  opacity: 0.75;
 }
 .bw__step.is-done {
   opacity: 0.55;
@@ -462,16 +541,55 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
 }
 .bw__stepN {
   font-family: var(--display);
-  font-size: 15px;
+  font-size: 16px;
   letter-spacing: 0;
 }
+
+.bw__x {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  height: 36px;
+  padding-right: 30px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  transition: opacity var(--t-fast) ease;
+}
+.bw__x:hover {
+  opacity: 1;
+}
+.bw__x i {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  background: currentColor;
+  transition: transform var(--t-mid) var(--ease-out);
+}
+.bw__x i:nth-of-type(1) {
+  transform: rotate(45deg);
+}
+.bw__x i:nth-of-type(2) {
+  transform: rotate(-45deg);
+}
+.bw__x:hover i:nth-of-type(1) {
+  transform: rotate(135deg);
+}
+.bw__x:hover i:nth-of-type(2) {
+  transform: rotate(45deg);
+}
+
 .bw__rail {
   position: absolute;
   left: 0;
   right: 0;
   bottom: -1px;
   height: 1px;
-  background: transparent;
 }
 .bw__rail i {
   display: block;
@@ -481,71 +599,86 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
   transition: transform var(--t-slow) var(--ease-out);
 }
 
-.bw__x {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  position: relative;
-  transition: transform var(--t-mid) var(--ease-out);
-  flex-shrink: 0;
-}
-.bw__x:hover {
-  transform: rotate(90deg);
-}
-.bw__x i {
-  position: absolute;
-  width: 13px;
-  height: 1px;
-  background: var(--forest-ink);
-}
-.bw__x i:first-child {
-  transform: rotate(45deg);
-}
-.bw__x i:last-child {
-  transform: rotate(-45deg);
+/* ---- body ---- */
+.bw__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-/* body */
-.bw__body {
-  overflow-y: auto;
-  flex: 1;
-}
+/* steps 1–2: context left, inputs right, both centred in a readable band */
 .bw__pane {
-  padding: clamp(26px, 4vw, 46px);
-  animation: pane var(--t-mid) var(--ease-out);
+  min-height: 100%;
+  width: min(100% - var(--gutter) * 2, 1180px);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: clamp(40px, 7vw, 120px);
+  align-items: center;
+  padding-block: clamp(40px, 7vh, 90px);
 }
-@keyframes pane {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
+
+.bw__big {
+  display: block;
+  font-family: var(--display);
+  font-size: clamp(64px, 8vw, 120px);
+  line-height: 0.9;
+  color: var(--forest);
+  opacity: 0.16;
+  margin-bottom: 18px;
 }
 .bw__title {
-  font-size: clamp(26px, 3.4vw, 40px);
-}
-.bw__title--sm {
-  font-size: clamp(22px, 2.6vw, 30px);
+  font-size: clamp(30px, 3.4vw, 48px);
 }
 .bw__lede {
-  margin: 12px 0 30px;
-  max-width: 52ch;
-  font-size: 15px;
-  line-height: 1.7;
+  margin: 16px 0 0;
+  max-width: 42ch;
+  font-size: 15.5px;
+  line-height: 1.75;
+  opacity: 0.62;
+}
+.bw__tips {
+  list-style: none;
+  margin: 30px 0 0;
+  padding: 22px 0 0;
+  border-top: 1px solid rgba(22, 32, 26, 0.1);
+  display: grid;
+  gap: 12px;
+}
+.bw__tips li {
+  position: relative;
+  padding-left: 20px;
+  font-size: 14px;
   opacity: 0.6;
 }
+.bw__tips li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 8px;
+  height: 1px;
+  background: currentColor;
+}
+.bw__count {
+  margin: 28px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
 
-/* fields */
+/* ---- fields ---- */
 .bw__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  gap: 20px;
 }
 .bw__field {
   display: grid;
-  gap: 8px;
-  margin-bottom: 18px;
+  gap: 9px;
+  margin-bottom: 22px;
 }
 .bw__field span {
   font-size: 10.5px;
@@ -553,52 +686,80 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
   text-transform: uppercase;
   opacity: 0.5;
 }
+.bw__field b {
+  font-weight: 400;
+  color: var(--forest);
+}
 .bw__field input,
 .bw__field textarea {
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   color: inherit;
-  background: transparent;
-  border: 1px solid rgba(22, 32, 26, 0.18);
-  border-radius: 2px;
-  padding: 13px 15px;
+  background: #fff;
+  border: 1px solid rgba(22, 32, 26, 0.14);
+  border-radius: 3px;
+  padding: 15px 17px;
   width: 100%;
   resize: vertical;
-  transition: border-color var(--t-mid) ease;
+  transition:
+    border-color var(--t-fast) ease,
+    box-shadow var(--t-mid) ease;
 }
 .bw__field input:focus,
 .bw__field textarea:focus {
   outline: none;
   border-color: var(--forest);
+  box-shadow: 0 0 0 4px rgba(58, 90, 73, 0.1);
 }
 .bw__field textarea::placeholder,
 .bw__field input::placeholder {
-  color: rgba(22, 32, 26, 0.32);
+  color: rgba(22, 32, 26, 0.3);
 }
 
-/* references */
+/* ---- references ---- */
 .bw__drop {
   display: grid;
   justify-items: center;
-  gap: 8px;
-  padding: clamp(34px, 6vw, 60px);
-  border: 1px dashed rgba(22, 32, 26, 0.28);
-  border-radius: 3px;
+  align-content: center;
+  gap: 10px;
+  min-height: 320px;
+  padding: 40px;
+  background: #fff;
+  border: 1px dashed rgba(22, 32, 26, 0.24);
+  border-radius: 4px;
   cursor: pointer;
   text-align: center;
   transition:
     border-color var(--t-mid) ease,
-    background-color var(--t-mid) ease;
+    background-color var(--t-mid) ease,
+    min-height var(--t-slow) var(--ease-out);
+}
+.bw__drop.is-compact {
+  min-height: 160px;
 }
 .bw__drop:hover,
 .bw__drop.is-over {
   border-color: var(--forest);
-  background: rgba(58, 90, 73, 0.05);
+  background: rgba(58, 90, 73, 0.04);
+}
+.bw__drop svg {
+  width: 30px;
+  height: 30px;
+  stroke: var(--forest);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-bottom: 6px;
+  transition: transform var(--t-mid) var(--ease-out);
+}
+.bw__drop:hover svg,
+.bw__drop.is-over svg {
+  transform: translateY(-4px);
 }
 .bw__drop strong {
   font-family: var(--display);
   font-weight: 400;
-  font-size: 22px;
+  font-size: 24px;
 }
 .bw__drop span {
   font-size: 11px;
@@ -609,17 +770,17 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
 
 .bw__refs {
   list-style: none;
-  margin: 22px 0 0;
+  margin: 18px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 .bw__refs li {
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
-  animation: pane var(--t-mid) var(--ease-out);
+  border-radius: 3px;
 }
 .bw__refs img {
   width: 100%;
@@ -628,50 +789,73 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
 }
 .bw__refs button {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 24px;
-  height: 24px;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: rgba(251, 249, 245, 0.92);
-  font-size: 15px;
+  background: rgba(251, 249, 245, 0.94);
+  font-size: 16px;
   line-height: 1;
 }
-.bw__skip {
-  margin: 22px 0 0;
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  opacity: 0.4;
+.ref-enter-active,
+.ref-leave-active {
+  transition:
+    opacity var(--t-mid) ease,
+    transform var(--t-mid) var(--ease-out);
+}
+.ref-enter-from,
+.ref-leave-to {
+  opacity: 0;
+  transform: scale(0.92);
 }
 
-/* configurator */
+/* ---- configurator: the model gets the room ---- */
 .bw__pane--cfg {
-  display: grid;
-  grid-template-columns: 1.02fr 1fr;
-  gap: clamp(24px, 3vw, 44px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 0;
+  align-items: stretch;
   padding: 0;
 }
-.bw__cfgView {
-  min-height: 340px;
+.bw__stage {
+  position: relative;
+  min-height: 0;
   border-right: 1px solid rgba(22, 32, 26, 0.1);
 }
-.bw__cfgOpts {
-  padding: clamp(26px, 3vw, 40px) clamp(26px, 3vw, 40px) clamp(26px, 3vw, 40px) 0;
+.bw__opts {
+  overflow-y: auto;
+  padding: clamp(30px, 5vh, 56px) clamp(28px, 4vw, 64px);
 }
-.bw__cfgOpts .bw__lede {
-  margin-bottom: 26px;
+.bw__opts .bw__big {
+  font-size: clamp(52px, 5vw, 80px);
+  margin-bottom: 10px;
+}
+.bw__opts .bw__lede {
+  margin-bottom: 34px;
 }
 
 .bw__group {
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 }
 .bw__gLabel {
-  margin: 0 0 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
   font-size: 10.5px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  opacity: 0.45;
+  opacity: 0.5;
+}
+.bw__gLabel em {
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  font-size: 12px;
+  opacity: 0.8;
 }
 .bw__chips {
   display: flex;
@@ -679,10 +863,11 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
   gap: 8px;
 }
 .bw__chips button {
-  padding: 9px 15px;
-  border: 1px solid rgba(22, 32, 26, 0.18);
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid rgba(22, 32, 26, 0.14);
   border-radius: 100px;
-  font-size: 13px;
+  font-size: 13.5px;
   transition:
     border-color var(--t-fast) ease,
     background-color var(--t-fast) ease,
@@ -708,11 +893,12 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
 
 .bw__sw {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .bw__sw button {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -720,63 +906,98 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
   transition: border-color var(--t-fast) ease;
 }
 .bw__sw button i {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(22, 32, 26, 0.14);
   transition: transform var(--t-fast) var(--ease-out);
 }
 .bw__sw button:hover i {
-  transform: scale(1.12);
+  transform: scale(1.1);
 }
 .bw__sw button.is-on {
   border-color: var(--forest-ink);
 }
 
-/* done */
+/* ---- done ---- */
 .bw__done {
-  padding: clamp(40px, 7vw, 82px) clamp(26px, 4vw, 46px);
+  min-height: 100%;
+  display: grid;
+  justify-items: center;
+  align-content: center;
   text-align: center;
-  animation: pane var(--t-slow) var(--ease-out);
+  padding: clamp(40px, 8vh, 90px) var(--gutter);
 }
-.bw__done h3 {
-  font-size: clamp(30px, 4vw, 46px);
+.bw__doneMark {
+  color: var(--forest);
+  margin-bottom: 26px;
 }
-.bw__done p {
+.bw__done h2 {
+  font-size: clamp(38px, 5vw, 64px);
+}
+.bw__done > p {
   margin: 14px auto 0;
   max-width: 44ch;
-  opacity: 0.65;
+  opacity: 0.62;
+}
+.bw__recap {
+  margin: 36px 0 0;
+  width: min(100%, 520px);
+  border-top: 1px solid rgba(22, 32, 26, 0.12);
+  text-align: left;
+}
+.bw__recap div {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(22, 32, 26, 0.12);
+}
+.bw__recap dt {
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  padding-top: 3px;
+}
+.bw__recap dd {
+  margin: 0;
+  font-size: 14.5px;
 }
 .bw__doneActs {
-  margin-top: 32px;
+  margin-top: 34px;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 22px;
+  gap: 24px;
   flex-wrap: wrap;
 }
 .bw__fine {
-  margin-top: 22px !important;
+  margin: 20px 0 0;
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  opacity: 0.35 !important;
+  opacity: 0.35;
 }
 
-/* foot */
+/* ---- foot ---- */
 .bw__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px clamp(20px, 3vw, 34px);
+  padding: 16px var(--gutter);
   border-top: 1px solid rgba(22, 32, 26, 0.1);
   background: var(--chalk);
 }
 .bw__footActs {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 22px;
+}
+.bw__hint {
+  font-size: 12px;
+  opacity: 0.5;
 }
 .bw__link {
   font-size: 11px;
@@ -798,31 +1019,87 @@ watch(step, () => panel.value?.scrollTo({ top: 0, behavior: 'smooth' }))
   opacity: 0.3;
 }
 .bw__foot .btn:disabled {
-  opacity: 0.32;
+  opacity: 0.3;
   pointer-events: none;
 }
 
-@media (max-width: 860px) {
-  .bw {
+/* ---- pane transitions: slide in the direction of travel ---- */
+.fwd-enter-active,
+.fwd-leave-active,
+.back-enter-active,
+.back-leave-active {
+  transition:
+    opacity var(--t-mid) ease,
+    transform var(--t-mid) var(--ease-out);
+}
+.fwd-enter-from,
+.back-leave-to {
+  opacity: 0;
+  transform: translateX(28px);
+}
+.fwd-leave-to,
+.back-enter-from {
+  opacity: 0;
+  transform: translateX(-28px);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--t-mid) ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* ---- narrow ---- */
+@media (max-width: 900px) {
+  .bw__head {
+    grid-template-columns: auto 1fr auto;
+    padding-block: 14px;
+  }
+  .bw__brand span,
+  .bw__stepL,
+  .bw__x span {
+    display: none;
+  }
+  .bw__steps {
+    justify-content: center;
+  }
+  .bw__pane {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 28px;
+    padding-block: 30px 40px;
+  }
+  .bw__big {
+    font-size: 54px;
+  }
+  .bw__tips {
+    display: none;
+  }
+  .bw__row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .bw__drop {
+    min-height: 200px;
+  }
+  .bw__pane--cfg {
+    height: auto;
+    width: 100%;
+    gap: 0;
     padding: 0;
   }
-  .bw__panel {
-    height: 100%;
-    max-height: none;
-  }
-  .bw__row,
-  .bw__pane--cfg {
-    grid-template-columns: 1fr;
-  }
-  .bw__cfgView {
-    min-height: 280px;
+  .bw__stage {
+    height: 44vh;
     border-right: 0;
     border-bottom: 1px solid rgba(22, 32, 26, 0.1);
   }
-  .bw__cfgOpts {
-    padding: 26px;
+  .bw__opts {
+    overflow: visible;
+    padding: 28px var(--gutter) 36px;
   }
-  .bw__stepL {
+  .bw__hint {
     display: none;
   }
 }
