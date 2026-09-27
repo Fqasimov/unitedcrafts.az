@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import LogoMark from './LogoMark.vue'
+import { openBrief } from '../stores/ui.js'
 
 const links = [
   { label: 'Studiya', href: '#studio' },
@@ -28,6 +29,11 @@ function go(href) {
   open.value = false
   document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' })
 }
+
+function brief() {
+  open.value = false
+  openBrief()
+}
 </script>
 
 <template>
@@ -47,9 +53,9 @@ function go(href) {
         </a>
       </nav>
 
-      <a class="hdr__cta" href="#contact" @click.prevent="go('#contact')">
-        <span>Brief göndər</span>
-      </a>
+      <button class="btn hdr__cta" @click="brief">
+        <span class="btn__dot"></span><span>Brief göndər</span>
+      </button>
 
       <button
         class="hdr__burger"
@@ -65,7 +71,7 @@ function go(href) {
       <a v-for="l in links" :key="l.href" :href="l.href" @click.prevent="go(l.href)">{{
         l.label
       }}</a>
-      <a href="#contact" @click.prevent="go('#contact')">Brief göndər</a>
+      <button @click="brief">Brief göndər</button>
     </div>
   </header>
 </template>
@@ -79,8 +85,8 @@ function go(href) {
   z-index: 90;
   color: var(--bone);
   transition:
-    transform 0.6s var(--ease-out),
-    background-color 0.6s ease;
+    transform var(--t-slow) var(--ease-out),
+    background-color var(--t-slow) ease;
 }
 .hdr--tucked {
   transform: translateY(-104%);
@@ -98,7 +104,7 @@ function go(href) {
   align-items: center;
   gap: 32px;
   padding: 26px 0;
-  transition: padding 0.6s var(--ease-out);
+  transition: padding var(--t-slow) var(--ease-out);
 }
 .hdr--solid .hdr__in {
   padding: 16px 0;
@@ -136,7 +142,7 @@ function go(href) {
   background: currentColor;
   transform: scaleX(0);
   transform-origin: right;
-  transition: transform 0.55s var(--ease-out);
+  transition: transform var(--t-mid) var(--ease-out);
 }
 .hdr__nav a:hover span::after {
   transform: scaleX(1);
@@ -144,33 +150,8 @@ function go(href) {
 }
 
 .hdr__cta {
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  border: 1px solid currentColor;
-  border-radius: 100px;
   padding: 11px 22px;
-  overflow: hidden;
-  position: relative;
-  transition: color 0.45s var(--ease-out);
-}
-.hdr__cta span {
-  position: relative;
-  z-index: 1;
-}
-.hdr__cta::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: currentColor;
-  transform: translateY(101%);
-  transition: transform 0.5s var(--ease-out);
-}
-.hdr__cta:hover::before {
-  transform: none;
-}
-.hdr__cta:hover {
-  color: var(--forest-deep);
+  flex-shrink: 0;
 }
 
 .hdr__burger {
@@ -185,7 +166,7 @@ function go(href) {
   right: 0;
   height: 1px;
   background: currentColor;
-  transition: transform 0.45s var(--ease-out);
+  transition: transform var(--t-mid) var(--ease-out);
 }
 .hdr__burger i:first-child {
   top: 6px;
@@ -230,8 +211,8 @@ function go(href) {
     overflow: hidden;
     padding-block: 0;
     transition:
-      max-height 0.6s var(--ease-out),
-      padding 0.6s var(--ease-out);
+      max-height var(--t-slow) var(--ease-out),
+      padding var(--t-slow) var(--ease-out);
   }
   .hdr--open .hdr__sheet {
     max-height: 60vh;

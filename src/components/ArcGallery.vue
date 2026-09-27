@@ -1,11 +1,10 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { works } from '../data/works.js'
+import { openCatalogue } from '../stores/ui.js'
 
 const emit = defineEmits(['open'])
 
-const root = ref(null)
-const tilt = ref(0)
 const hovered = ref(null)
 
 const SPREAD = 26 // degrees between neighbouring tiles
@@ -17,20 +16,6 @@ const angled = computed(() =>
 const caption = computed(
   () => angled.value.find((w) => w.id === hovered.value) ?? angled.value[2]
 )
-
-function onScroll() {
-  const el = root.value
-  if (!el) return
-  const r = el.getBoundingClientRect()
-  const p = 1 - (r.top + r.height / 2) / (window.innerHeight || 1)
-  tilt.value = Math.max(-1, Math.min(1, p)) * 4
-}
-
-onMounted(() => {
-  onScroll()
-  window.addEventListener('scroll', onScroll, { passive: true })
-})
-onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
 function open(work, event) {
   const frame = event.currentTarget.querySelector('.tile__frame')
@@ -51,7 +36,7 @@ function open(work, event) {
       </h2>
     </div>
 
-    <div ref="root" class="arc" :style="{ '--tilt': tilt + 'deg' }">
+    <div class="arc">
       <div class="arc__stage" data-reveal>
         <span class="arc__guide" aria-hidden="true"></span>
 
@@ -84,8 +69,17 @@ function open(work, event) {
       <div class="arc__caption" :key="caption.id">
         <strong>{{ caption.client }}</strong>
         <span>{{ caption.category }} · {{ caption.year }}</span>
-        <em>Detallar üçün klikləyin</em>
       </div>
+    </div>
+
+    <div class="shell arc__more" data-reveal>
+      <p>Bunlar seçmədir — atelyedən çıxan hər şey kataloqdadır.</p>
+      <button class="arc__link" @click="openCatalogue">
+        <span>Tam kataloqa bax</span>
+        <svg width="30" height="8" viewBox="0 0 30 8" fill="none" aria-hidden="true">
+          <path d="M0 4h28M25 1l3.5 3L25 7" stroke="currentColor" />
+        </svg>
+      </button>
     </div>
   </section>
 </template>
@@ -125,8 +119,6 @@ function open(work, event) {
 .arc__stage {
   position: absolute;
   inset: 0;
-  transform: rotate(var(--tilt));
-  transition: transform 1s var(--ease-out);
 }
 
 .arc__guide {
@@ -160,18 +152,18 @@ function open(work, event) {
   transform-origin: 50% calc(var(--r) + var(--tile) / 2);
   transform: rotate(calc(var(--a) * 1deg));
   transition:
-    transform 0.8s var(--ease-out),
-    opacity 0.5s ease;
+    transform var(--t-mid) var(--ease-out),
+    opacity var(--t-mid) ease;
 }
 
 /* fan out from a closed stack when the arc scrolls in */
 .arc__stage[data-reveal] .tile {
   opacity: 0;
-  transform: rotate(0deg) translateY(46px);
+  transform: rotate(0deg) translateY(40px);
   transition:
-    transform 1.25s var(--ease-out),
-    opacity 0.8s ease;
-  transition-delay: calc(var(--i) * 85ms);
+    transform 0.9s var(--ease-out),
+    opacity var(--t-slow) ease;
+  transition-delay: calc(var(--i) * 70ms);
 }
 .arc__stage[data-reveal].is-in .tile {
   opacity: 1;
@@ -236,9 +228,11 @@ function open(work, event) {
   background: rgba(242, 237, 227, 0.94);
   display: grid;
   place-items: center;
-  transform: scale(0.5);
+  transform: scale(0.6);
   opacity: 0;
-  transition: all 0.5s var(--ease-out);
+  transition:
+    transform var(--t-mid) var(--ease-out),
+    opacity var(--t-mid) ease;
 }
 .tile__plus i {
   position: absolute;
@@ -270,12 +264,12 @@ function open(work, event) {
   justify-items: center;
   gap: 7px;
   text-align: center;
-  animation: capIn 0.6s var(--ease-out);
+  animation: capIn var(--t-mid) var(--ease-out);
 }
 @keyframes capIn {
   from {
     opacity: 0;
-    transform: translateY(9px);
+    transform: translateY(6px);
   }
 }
 .arc__caption strong {
@@ -290,13 +284,36 @@ function open(work, event) {
   text-transform: uppercase;
   opacity: 0.5;
 }
-.arc__caption em {
-  font-style: normal;
-  font-size: 10.5px;
-  letter-spacing: 0.24em;
+.arc__more {
+  margin-top: clamp(40px, 5vw, 64px);
+  padding-top: clamp(24px, 3vw, 34px);
+  border-top: 1px solid rgba(22, 32, 26, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.arc__more p {
+  margin: 0;
+  font-size: 14.5px;
+  opacity: 0.6;
+}
+.arc__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  opacity: 0.32;
-  margin-top: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid currentColor;
+}
+.arc__link svg {
+  transition: transform var(--t-mid) var(--ease-out);
+}
+.arc__link:hover svg {
+  transform: translateX(6px);
 }
 
 @media (max-width: 820px) {

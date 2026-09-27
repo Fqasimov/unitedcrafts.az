@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
+import { defineAsyncComponent, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import Lenis from 'lenis'
 
 import TheLoader from './components/TheLoader.vue'
@@ -13,6 +13,13 @@ import ContactSection from './components/ContactSection.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import WorkModal from './components/WorkModal.vue'
 import { useReveal } from './composables/useReveal.js'
+import { briefOpen, catalogueOpen, registerLenis } from './stores/ui.js'
+
+/* the wizard pulls in three.js — keep it out of the first paint */
+const BriefModal = defineAsyncComponent(() => import('./components/BriefModal.vue'))
+const CatalogueOverlay = defineAsyncComponent(() =>
+  import('./components/CatalogueOverlay.vue')
+)
 
 const loading = ref(true)
 const ready = ref(false)
@@ -24,11 +31,11 @@ let lenis
 useReveal(main)
 
 onMounted(() => {
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (reduced) return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-  lenis = new Lenis({ duration: 1.15, smoothWheel: true })
+  lenis = new Lenis({ duration: 1.05, smoothWheel: true })
   lenis.stop()
+  registerLenis(lenis)
 
   const raf = (t) => {
     lenis.raf(t)
@@ -45,13 +52,15 @@ function onLoaded() {
   requestAnimationFrame(() => (ready.value = true))
 }
 
-watch(opened, async (v) => {
-  if (v) lenis?.stop()
-  else {
-    lenis?.start()
-    await nextTick()
-  }
+watch(opened, (v) => {
+  document.body.classList.toggle('is-locked', !!v)
+  v ? lenis?.stop() : lenis?.start()
 })
+
+function fromCatalogue(payload) {
+  catalogueOpen.value = false
+  opened.value = payload
+}
 </script>
 
 <template>
@@ -72,5 +81,11 @@ watch(opened, async (v) => {
 
   <Teleport to="body">
     <WorkModal v-if="opened" :payload="opened" @close="opened = null" />
+    <CatalogueOverlay
+      v-if="catalogueOpen"
+      @close="catalogueOpen = false"
+      @open="fromCatalogue"
+    />
+    <BriefModal v-if="briefOpen" @close="briefOpen = false" />
   </Teleport>
 </template>

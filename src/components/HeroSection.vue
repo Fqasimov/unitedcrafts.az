@@ -1,29 +1,55 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { openBrief } from '../stores/ui.js'
 
 const props = defineProps({ ready: Boolean })
 
-const root = ref(null)
-const px = ref(0)
-const py = ref(0)
-const scrolled = ref(0)
+const plateA = ref(null)
+const plateB = ref(null)
+
+/* Pointer parallax is lerped on rAF rather than transitioned on every
+   pointermove — a transition restarts on each event and rubber-bands. */
+let raf = 0
+const target = { x: 0, y: 0 }
+const eased = { x: 0, y: 0 }
+let scrollY = 0
 
 function onMove(e) {
-  const w = window.innerWidth
-  const h = window.innerHeight
-  px.value = (e.clientX / w - 0.5) * 2
-  py.value = (e.clientY / h - 0.5) * 2
+  target.x = (e.clientX / window.innerWidth - 0.5) * 2
+  target.y = (e.clientY / window.innerHeight - 0.5) * 2
 }
 
 function onScroll() {
-  scrolled.value = Math.min(1, window.scrollY / (window.innerHeight || 1))
+  scrollY = window.scrollY
+}
+
+function frame() {
+  eased.x += (target.x - eased.x) * 0.06
+  eased.y += (target.y - eased.y) * 0.06
+
+  const depth = Math.min(scrollY, window.innerHeight)
+  if (plateA.value) {
+    plateA.value.style.transform = `translate3d(${eased.x * -14}px, ${
+      eased.y * -10 + depth * 0.1
+    }px, 0)`
+  }
+  if (plateB.value) {
+    plateB.value.style.transform = `translate3d(${eased.x * 18}px, ${
+      eased.y * 13 - depth * 0.06
+    }px, 0)`
+  }
+  raf = requestAnimationFrame(frame)
 }
 
 onMounted(() => {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   window.addEventListener('pointermove', onMove, { passive: true })
   window.addEventListener('scroll', onScroll, { passive: true })
+  raf = requestAnimationFrame(frame)
 })
+
 onBeforeUnmount(() => {
+  cancelAnimationFrame(raf)
   window.removeEventListener('pointermove', onMove)
   window.removeEventListener('scroll', onScroll)
 })
@@ -32,31 +58,19 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
 </script>
 
 <template>
-  <section id="top" ref="root" class="hero" :class="{ 'hero--live': props.ready }">
-    <div class="hero__wash"></div>
+  <section id="top" class="hero" :class="{ 'hero--live': props.ready }">
+    <div class="hero__wash" aria-hidden="true"></div>
 
-    <div
-      class="hero__plate hero__plate--l drift"
-      style="--drift-x: -10px; --drift-y: -26px; --drift-r: -2deg; --drift-time: 15s"
-      :style="{
-        '--mx': px * -18 + 'px',
-        '--my': py * -14 + 'px',
-        '--sy': scrolled * 120 + 'px'
-      }"
-    >
-      <img src="/works/azparking-open.jpg" alt="azParking hədiyyə qutusu" loading="eager" />
+    <div class="hero__plate hero__plate--a">
+      <div ref="plateA" class="hero__shift">
+        <img src="/works/azparking-open.jpg" alt="azParking hədiyyə qutusu" />
+      </div>
     </div>
 
-    <div
-      class="hero__plate hero__plate--r drift"
-      style="--drift-x: 16px; --drift-y: 20px; --drift-r: 2.5deg; --drift-time: 11s; --drift-delay: -3s"
-      :style="{
-        '--mx': px * 24 + 'px',
-        '--my': py * 18 + 'px',
-        '--sy': scrolled * -90 + 'px'
-      }"
-    >
-      <img src="/works/meqa-closed.jpg" alt="Meqa Sığorta hədiyyə qutusu" loading="eager" />
+    <div class="hero__plate hero__plate--b">
+      <div ref="plateB" class="hero__shift">
+        <img src="/works/meqa-closed.jpg" alt="Meqa Sığorta hədiyyə qutusu" />
+      </div>
     </div>
 
     <div class="hero__in shell">
@@ -73,10 +87,14 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
           Korporativ hədiyyə dəstləri, taxta məmulatlar və brend qablaşdırması —
           konsepsiyadan son qutunun bağlanmasına qədər bir atelyedə.
         </p>
-        <a class="hero__scroll" href="#studio">
-          <span class="hero__scrollLine"><i></i></span>
-          Aşağı
-        </a>
+
+        <div class="hero__acts">
+          <button class="btn btn--solid" @click="openBrief">
+            <span class="btn__dot"></span>
+            <span>Brief göndər</span>
+          </button>
+          <a class="hero__ghost" href="#works">İşlərə bax</a>
+        </div>
       </div>
     </div>
 
@@ -105,73 +123,69 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
 
 .hero__wash {
   position: absolute;
-  inset: -20%;
-  background:
-    radial-gradient(48% 42% at 22% 18%, rgba(88, 130, 104, 0.4), transparent 70%),
-    radial-gradient(40% 38% at 82% 76%, rgba(200, 168, 107, 0.18), transparent 70%);
-  animation: wash 22s ease-in-out infinite alternate;
+  inset: 0;
   z-index: -2;
-}
-@keyframes wash {
-  to {
-    transform: translate3d(3%, -4%, 0) scale(1.12);
-  }
+  background:
+    radial-gradient(52% 46% at 18% 12%, rgba(88, 130, 104, 0.34), transparent 70%),
+    radial-gradient(44% 40% at 86% 82%, rgba(200, 168, 107, 0.14), transparent 70%);
 }
 
 .hero__plate {
   position: absolute;
   z-index: -1;
-  border-radius: 2px;
   overflow: hidden;
-  box-shadow: 0 50px 90px -40px rgba(0, 0, 0, 0.75);
+  box-shadow: 0 40px 80px -44px rgba(0, 0, 0, 0.7);
   opacity: 0;
+  transform: translateY(18px);
   transition:
-    opacity 1.4s var(--ease-out) 0.35s,
-    filter 0.8s ease;
-  filter: saturate(0.85);
+    opacity 1s var(--ease-out) 0.3s,
+    transform 1s var(--ease-out) 0.3s;
 }
 .hero--live .hero__plate {
   opacity: 1;
+  transform: none;
+}
+.hero__shift {
+  width: 100%;
+  height: 100%;
 }
 .hero__plate img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: translate3d(var(--mx, 0), calc(var(--my, 0px) + var(--sy, 0px)), 0);
-  transition: transform 0.9s var(--ease-out);
+  filter: saturate(0.9);
 }
-.hero__plate--l {
+.hero__plate--a {
   right: 4vw;
   top: 15vh;
-  width: clamp(180px, 20vw, 310px);
+  width: clamp(180px, 20vw, 300px);
   aspect-ratio: 4 / 3;
 }
-.hero__plate--r {
+.hero__plate--b {
   right: 15vw;
   bottom: 21vh;
-  width: clamp(140px, 13vw, 200px);
+  width: clamp(140px, 13vw, 195px);
   aspect-ratio: 3 / 4;
 }
 
 .hero__in {
   position: relative;
   padding-block: 15vh 11vh;
-  width: min(100% - var(--gutter) * 2, var(--shell));
 }
 
 .hero__eyebrow {
   font-size: 11px;
   letter-spacing: 0.34em;
   text-transform: uppercase;
-  opacity: 0;
   margin: 0 0 clamp(22px, 4vw, 40px);
-  transform: translateY(12px);
+  opacity: 0;
+  transform: translateY(10px);
   transition:
-    opacity 1s ease 0.2s,
-    transform 1s var(--ease-out) 0.2s;
+    opacity var(--t-slow) var(--ease-out) 0.15s,
+    transform var(--t-slow) var(--ease-out) 0.15s;
 }
 .hero--live .hero__eyebrow {
-  opacity: 0.66;
+  opacity: 0.62;
   transform: none;
 }
 
@@ -188,8 +202,8 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
 .hero__line > span {
   display: block;
   transform: translateY(105%);
-  transition: transform 1.25s var(--ease-out);
-  transition-delay: calc(var(--i) * 110ms + 120ms);
+  transition: transform 0.95s var(--ease-out);
+  transition-delay: calc(var(--i) * 90ms + 100ms);
 }
 .hero--live .hero__line > span {
   transform: none;
@@ -203,16 +217,16 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
 }
 
 .hero__foot {
-  margin-top: clamp(38px, 6vw, 72px);
+  margin-top: clamp(38px, 6vw, 68px);
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 40px;
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(12px);
   transition:
-    opacity 1.1s ease 0.75s,
-    transform 1.1s var(--ease-out) 0.75s;
+    opacity var(--t-slow) var(--ease-out) 0.55s,
+    transform var(--t-slow) var(--ease-out) 0.55s;
 }
 .hero--live .hero__foot {
   opacity: 1;
@@ -226,38 +240,26 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
   opacity: 0.74;
 }
 
-.hero__scroll {
+.hero__acts {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 24px;
+  flex-shrink: 0;
+}
+.hero__ghost {
   font-size: 11px;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  opacity: 0.7;
-  white-space: nowrap;
+  opacity: 0.6;
+  padding-bottom: 3px;
+  border-bottom: 1px solid transparent;
+  transition:
+    opacity var(--t-mid) ease,
+    border-color var(--t-mid) ease;
 }
-.hero__scrollLine {
-  display: block;
-  width: 64px;
-  height: 1px;
-  background: rgba(242, 237, 227, 0.26);
-  overflow: hidden;
-}
-.hero__scrollLine i {
-  display: block;
-  width: 34%;
-  height: 100%;
-  background: var(--bone);
-  animation: sweep 2.4s var(--ease-soft) infinite;
-}
-@keyframes sweep {
-  0% {
-    transform: translateX(-100%);
-  }
-  60%,
-  100% {
-    transform: translateX(300%);
-  }
+.hero__ghost:hover {
+  opacity: 1;
+  border-color: currentColor;
 }
 
 .hero__ticker {
@@ -265,18 +267,18 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 16px 0;
+  padding: 15px 0;
   border-top: 1px solid rgba(242, 237, 227, 0.12);
   overflow: hidden;
   font-size: 11px;
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  opacity: 0.5;
+  opacity: 0.42;
 }
 .hero__tickerTrack {
   display: flex;
   width: max-content;
-  animation: marquee 46s linear infinite;
+  animation: marquee 60s linear infinite;
 }
 .hero__tickerTrack span {
   padding-right: 24px;
@@ -299,6 +301,7 @@ const lines = ['Hədiyyə deyil —', 'açılan bir', 'təəssürat.']
   .hero__foot {
     flex-direction: column;
     align-items: flex-start;
+    gap: 30px;
   }
   .hero__line:nth-child(2) {
     padding-left: 0;

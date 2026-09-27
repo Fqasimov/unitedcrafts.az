@@ -14,8 +14,12 @@
   --display: 'Cormorant Garamond', 'Times New Roman', serif;
   --body: 'Jost', system-ui, -apple-system, sans-serif;
 
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-soft: cubic-bezier(0.33, 0.9, 0.2, 1);
+  /* one curve for entrances, one for exits, three durations — nothing else */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.64, 0, 0.78, 0);
+  --t-fast: 0.22s;
+  --t-mid: 0.4s;
+  --t-slow: 0.7s;
 }
 
 *,
@@ -116,15 +120,16 @@ h3 {
   padding: clamp(96px, 13vw, 190px) 0;
 }
 
-/* ---------- scroll reveal ---------- */
+/* ---------- scroll reveal ----------
+   One pattern, one distance, one curve. Everything on the page that enters
+   does it this way; only the delay varies. */
 [data-reveal] {
   opacity: 0;
-  transform: translateY(26px);
+  transform: translateY(16px);
   transition:
-    opacity 1s var(--ease-out),
-    transform 1.15s var(--ease-out);
+    opacity var(--t-slow) var(--ease-out),
+    transform var(--t-slow) var(--ease-out);
   transition-delay: var(--reveal-delay, 0ms);
-  will-change: opacity, transform;
 }
 
 [data-reveal].is-in {
@@ -135,12 +140,11 @@ h3 {
 /* the wipe lives on the child so the observed box is never collapsed */
 [data-reveal='mask'] {
   transform: none;
-  transition: opacity 0.5s linear;
 }
 
 [data-reveal='mask'] > * {
   clip-path: inset(0 0 100% 0);
-  transition: clip-path 1.3s var(--ease-out);
+  transition: clip-path 0.9s var(--ease-out);
   transition-delay: var(--reveal-delay, 0ms);
 }
 
@@ -148,20 +152,73 @@ h3 {
   clip-path: inset(0 0 0 0);
 }
 
-/* ---------- floating decor ---------- */
-.drift {
-  animation: drift var(--drift-time, 13s) ease-in-out infinite alternate;
-  animation-delay: var(--drift-delay, 0s);
+/* ---------- buttons ---------- */
+/* --btn-ink is the resting ink AND the colour that wipes up on hover;
+   --btn-on is the label once the wipe has covered the button. Both are named
+   explicitly — using currentColor for the fill makes the label vanish the
+   moment the hover rule changes the colour. */
+.btn {
+  --btn-ink: var(--bone);
+  --btn-on: var(--forest-deep);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 26px;
+  border-radius: 100px;
+  border: 1px solid var(--btn-ink);
+  color: var(--btn-ink);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  overflow: hidden;
+  isolation: isolate;
+  transition: color var(--t-mid) var(--ease-out);
+}
+.btn > * {
+  position: relative;
+  z-index: 1;
+}
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--btn-ink);
+  transform: translateY(101%);
+  transition: transform var(--t-mid) var(--ease-out);
+}
+.btn:hover::before,
+.btn:focus-visible::before {
+  transform: none;
+}
+.btn:hover,
+.btn:focus-visible {
+  color: var(--btn-on);
+}
+.btn--ink {
+  --btn-ink: var(--forest-ink);
+  --btn-on: var(--bone);
+}
+/* already filled at rest, so the wipe darkens instead of lightening */
+.btn--solid {
+  --btn-ink: var(--forest-deep);
+  --btn-on: var(--bone);
+  background: var(--bone);
+  border-color: var(--bone);
 }
 
-@keyframes drift {
-  from {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
-  to {
-    transform: translate3d(var(--drift-x, 14px), var(--drift-y, -22px), 0)
-      rotate(var(--drift-r, 3deg));
-  }
+.btn__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+:where(a, button):focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -44,9 +44,9 @@ const stats = [
           />
         </figure>
         <figure
-          class="studio__shot studio__shot--small drift"
-          style="--drift-x: -12px; --drift-y: 18px; --drift-r: -2deg; --drift-time: 10s"
+          class="studio__shot studio__shot--small"
           data-reveal="mask"
+          style="--reveal-delay: 160ms"
         >
           <img src="/works/meqa-frame.jpg" alt="Əl ilə boyanmış çərçivə" loading="lazy" />
         </figure>
@@ -126,7 +126,7 @@ const stats = [
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 1.4s var(--ease-out);
+  transition: transform 0.9s var(--ease-out);
 }
 .studio__shot:hover img {
   transform: scale(1.05);

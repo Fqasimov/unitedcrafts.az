@@ -9,7 +9,7 @@ const count = ref(0)
 
 onMounted(() => {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const span = reduced ? 300 : 2600
+  const span = reduced ? 300 : 2000
 
   const t0 = performance.now()
   const tick = setInterval(() => {
@@ -83,8 +83,8 @@ onMounted(() => {
   justify-items: center;
   gap: 30px;
   transition:
-    opacity 0.5s ease,
-    transform 0.8s var(--ease-out);
+    opacity var(--t-mid) ease,
+    transform var(--t-slow) var(--ease-out);
 }
 .loader--s2 .loader__core {
   opacity: 0;
@@ -96,22 +96,22 @@ onMounted(() => {
 .loader__mark :deep(.mark__arc) {
   stroke-dasharray: 160;
   stroke-dashoffset: 160;
-  animation: draw 1.5s var(--ease-soft) 0.15s forwards;
+  animation: draw 1.1s var(--ease-out) 0.15s forwards;
 }
 .loader__mark :deep(.mark__ring) {
   stroke-dasharray: 340;
   stroke-dashoffset: 340;
-  animation: draw 1.9s var(--ease-soft) forwards;
+  animation: draw 1.4s var(--ease-out) forwards;
 }
 .loader__mark :deep(.mark__square) {
   opacity: 0;
   transform-origin: 91px 55px;
-  animation: pop 0.7s var(--ease-out) 1.1s forwards;
+  animation: pop var(--t-mid) var(--ease-out) 0.95s forwards;
 }
 .loader__mark :deep(.mark__estd) {
   opacity: 0;
   transform-origin: 60px 60px;
-  animation: spin-in 2.4s var(--ease-out) 0.9s forwards;
+  animation: spin-in 1.6s var(--ease-out) 0.8s forwards;
 }
 
 @keyframes draw {
@@ -155,7 +155,7 @@ onMounted(() => {
 }
 .loader--s1 .loader__word span,
 .loader--s2 .loader__word span {
-  animation: rise 0.85s var(--ease-out) forwards;
+  animation: rise 0.7s var(--ease-out) forwards;
   animation-delay: calc(var(--i) * 32ms);
 }
 @keyframes rise {
@@ -176,7 +176,7 @@ onMounted(() => {
   gap: 18px;
   font-size: 11px;
   letter-spacing: 0.28em;
-  transition: opacity 0.4s ease;
+  transition: opacity var(--t-mid) ease;
 }
 .loader--s2 .loader__meter {
   opacity: 0;
@@ -193,6 +193,6 @@ onMounted(() => {
   background: var(--bone);
   transform-origin: left;
   transform: scaleX(0);
-  transition: transform 0.4s var(--ease-out);
+  transition: transform var(--t-mid) var(--ease-out);
 }
 </style>

@@ -24,7 +24,7 @@ function flipIn() {
   el.style.transformOrigin = 'center'
   el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy}) rotate(${o.a || 0}deg)`
   el.getBoundingClientRect() // flush
-  el.style.transition = 'transform 0.95s cubic-bezier(0.16, 1, 0.3, 1)'
+  el.style.transition = 'transform 0.8s cubic-bezier(0.22, 1, 0.36, 1)'
   el.style.transform = 'none'
 }
 
@@ -38,7 +38,7 @@ function close() {
     const r = el.getBoundingClientRect()
     const dx = o.x + o.w / 2 - (r.left + r.width / 2)
     const dy = o.y + o.h / 2 - (r.top + r.height / 2)
-    el.style.transition = 'transform 0.6s cubic-bezier(0.7, 0, 0.84, 0)'
+    el.style.transition = 'transform 0.42s cubic-bezier(0.64, 0, 0.78, 0)'
     el.style.transform = `translate(${dx}px, ${dy}px) scale(${o.w / r.width}, ${
       o.h / r.height
     }) rotate(${o.a || 0}deg)`
@@ -140,10 +140,10 @@ watch(shot, () => {
   inset: 0;
   background: rgba(16, 24, 19, 0.82);
   backdrop-filter: blur(6px);
-  animation: fade 0.6s ease forwards;
+  animation: fade var(--t-mid) ease forwards;
 }
 .mw--out .mw__scrim {
-  animation: fade 0.45s ease reverse forwards;
+  animation: fade var(--t-fast) ease reverse forwards;
 }
 @keyframes fade {
   from {
@@ -176,7 +176,7 @@ watch(shot, () => {
   background: rgba(251, 249, 245, 0.9);
   display: grid;
   place-items: center;
-  transition: transform 0.5s var(--ease-out);
+  transition: transform var(--t-mid) var(--ease-out);
 }
 .mw__close:hover {
   transform: rotate(90deg);
@@ -209,7 +209,7 @@ watch(shot, () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  animation: soft 1.2s var(--ease-out);
+  animation: soft var(--t-slow) var(--ease-out);
 }
 @keyframes soft {
   from {
@@ -234,9 +234,9 @@ watch(shot, () => {
   outline: 1px solid rgba(251, 249, 245, 0.6);
   outline-offset: -1px;
   transition:
-    opacity 0.4s ease,
-    transform 0.4s var(--ease-out);
-  animation: rise-up 0.7s var(--ease-out) 0.5s backwards;
+    opacity var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-out);
+  animation: rise-up var(--t-slow) var(--ease-out) 0.35s backwards;
 }
 .mw__thumbs button img {
   width: 100%;
@@ -255,7 +255,7 @@ watch(shot, () => {
 }
 .mw__body > *,
 .mw__specs > div {
-  animation: rise-up 0.9s var(--ease-out) backwards;
+  animation: rise-up var(--t-slow) var(--ease-out) backwards;
   animation-delay: calc(var(--d, 0ms) + 250ms);
 }
 @keyframes rise-up {
@@ -326,7 +326,7 @@ watch(shot, () => {
   padding-bottom: 7px;
 }
 .mw__link svg {
-  transition: transform 0.5s var(--ease-out);
+  transition: transform var(--t-mid) var(--ease-out);
 }
 .mw__link:hover svg {
   transform: translateX(7px);

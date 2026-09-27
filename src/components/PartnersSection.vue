@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const partners = [
   { name: 'azParking', field: 'Mobilite', year: '2025', shot: '/works/azparking-closed.jpg' },
@@ -9,16 +9,12 @@ const partners = [
   { name: 'Kapital Bank', field: 'Bank', year: '2025', shot: '/works/kapital-bags.jpg' }
 ]
 
-const peek = ref(null)
-const pos = ref({ x: 0, y: 0 })
-
-function track(e) {
-  pos.value = { x: e.clientX, y: e.clientY }
-}
+const active = ref(0)
+const shown = computed(() => partners[active.value])
 </script>
 
 <template>
-  <section id="partners" class="part section" @pointermove="track">
+  <section id="partners" class="part section">
     <div class="shell">
       <div class="part__head">
         <p class="eyebrow" data-reveal>Partnyorlar</p>
@@ -27,34 +23,31 @@ function track(e) {
         </h2>
       </div>
 
-      <ul class="part__list">
-        <li
-          v-for="(p, i) in partners"
-          :key="p.name"
-          data-reveal
-          :style="{ '--reveal-delay': i * 60 + 'ms' }"
-          @mouseenter="peek = p"
-          @mouseleave="peek = null"
-        >
-          <span class="part__idx">0{{ i + 1 }}</span>
-          <span class="part__name">{{ p.name }}</span>
-          <span class="part__field">{{ p.field }}</span>
-          <span class="part__year">{{ p.year }}</span>
-        </li>
-      </ul>
+      <div class="part__body">
+        <ul class="part__list" @mouseleave="active = 0">
+          <li
+            v-for="(p, i) in partners"
+            :key="p.name"
+            :class="{ 'is-on': active === i }"
+            data-reveal
+            :style="{ '--reveal-delay': i * 55 + 'ms' }"
+            @mouseenter="active = i"
+          >
+            <span class="part__idx">0{{ i + 1 }}</span>
+            <span class="part__name">{{ p.name }}</span>
+            <span class="part__field">{{ p.field }}</span>
+            <span class="part__year">{{ p.year }}</span>
+          </li>
+        </ul>
+
+        <figure class="part__view" data-reveal="mask" aria-hidden="true">
+          <img v-for="(p, i) in partners" :key="p.name" :src="p.shot" alt="" :class="{ 'is-on': active === i }" />
+        </figure>
+      </div>
 
       <p class="part__note" data-reveal>
         Siyahıya qoşulmaq üçün — <a href="#contact">brief göndərin</a>.
       </p>
-    </div>
-
-    <div
-      class="part__peek"
-      :class="{ 'is-on': peek }"
-      :style="{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }"
-      aria-hidden="true"
-    >
-      <img v-if="peek" :src="peek.shot" alt="" />
     </div>
   </section>
 </template>
@@ -62,8 +55,6 @@ function track(e) {
 <style scoped>
 .part {
   background: var(--bone-warm);
-  position: relative;
-  overflow: hidden;
 }
 .part__title {
   font-size: clamp(34px, 5vw, 68px);
@@ -73,31 +64,47 @@ function track(e) {
   opacity: 0.5;
 }
 
+.part__body {
+  margin-top: clamp(42px, 5vw, 70px);
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: clamp(30px, 4vw, 60px);
+  align-items: start;
+}
+
 .part__list {
   list-style: none;
-  margin: clamp(46px, 6vw, 80px) 0 0;
+  margin: 0;
   padding: 0;
   border-top: 1px solid rgba(22, 32, 26, 0.16);
 }
 .part__list li {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 160px 70px;
+  grid-template-columns: 48px minmax(0, 1fr) 130px 60px;
   align-items: baseline;
-  gap: 20px;
-  padding: clamp(18px, 2.4vw, 30px) 0;
+  gap: 16px;
+  padding: clamp(16px, 2vw, 26px) 0;
   border-bottom: 1px solid rgba(22, 32, 26, 0.16);
-  transition: padding-left 0.6s var(--ease-out);
+  transition:
+    padding-left var(--t-mid) var(--ease-out),
+    opacity var(--t-mid) ease;
   cursor: default;
 }
-.part__list li:hover {
-  padding-left: 22px;
+.part__list:hover li {
+  opacity: 0.45;
+}
+/* only shift once a row is actually being pointed at, so the default
+   state reads as a flat list rather than one row nudged out of line */
+.part__list:hover li.is-on {
+  opacity: 1;
+  padding-left: 16px;
 }
 
 .part__idx,
 .part__field,
 .part__year {
   font-size: 11px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   opacity: 0.45;
 }
@@ -106,59 +113,54 @@ function track(e) {
 }
 .part__name {
   font-family: var(--display);
-  font-size: clamp(26px, 3.6vw, 48px);
+  font-size: clamp(24px, 3.2vw, 44px);
   line-height: 1;
 }
 
+.part__view {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--bone);
+}
+.part__view img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--t-mid) ease;
+}
+.part__view img.is-on {
+  opacity: 1;
+}
+
 .part__note {
-  margin: 34px 0 0;
+  margin: clamp(30px, 4vw, 44px) 0 0;
   font-size: 13px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   opacity: 0.55;
 }
 .part__note a {
   border-bottom: 1px solid currentColor;
 }
 
-.part__peek {
-  position: fixed;
-  z-index: 20;
-  top: 0;
-  left: 0;
-  width: 190px;
-  height: 230px;
-  margin: -115px 0 0 -95px;
-  overflow: hidden;
-  pointer-events: none;
-  opacity: 0;
-  transition:
-    opacity 0.45s ease,
-    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 40px 70px -40px rgba(22, 32, 26, 0.7);
-}
-.part__peek.is-on {
-  opacity: 1;
-}
-.part__peek img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  animation: zoomIn 0.9s var(--ease-out);
-}
-@keyframes zoomIn {
-  from {
-    transform: scale(1.18);
+@media (max-width: 900px) {
+  .part__body {
+    grid-template-columns: 1fr;
   }
-}
-
-@media (max-width: 760px) {
-  .part__list li {
-    grid-template-columns: 40px 1fr auto;
-  }
-  .part__year {
+  .part__view {
     display: none;
   }
-  .part__peek {
+  .part__list:hover li {
+    opacity: 1;
+  }
+  .part__list li {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+  }
+  .part__year {
     display: none;
   }
 }
